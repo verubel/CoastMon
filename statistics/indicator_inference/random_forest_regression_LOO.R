@@ -1,4 +1,4 @@
-# random_forest_regression_LOO
+# random_forest_regression_LOO.R
 # Verena Rubel 
 # RPTU Kaiserslautern Landau
 # created 30.10.2023 revised 10.01.2024
