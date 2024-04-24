@@ -22,7 +22,6 @@ env_eqform <- env %>% mutate(EQ_class = ifelse(EQ %in% c(1, 2), "good", "bad")) 
 nor_sams<- env %>% filter(Country=="NOR") %>% droplevels()
 sco_sams<- env %>% filter(Country=="SCO") %>% droplevels()
 
-# Random forest leave one out approach
 # expected: two results per MBMG each because we can do regression using AMBI and classification using EQ classes
 # also: seperate analysis for NOR/SCO
 
@@ -35,6 +34,15 @@ mb_tab <- mb_tab[,which(colnames(mb_tab) %in% nor_sams$Sample)]
 rf_input <- mb_tab %>% t() %>% as.data.frame() %>% rownames_to_column("Sample") %>%
   left_join(env_ambi) %>% column_to_rownames("Sample")
 
+### Random Forest pilot
+
+set.seed(42)
+model_acc <- randomForest(AMBI ~ ., data=rf_input, ntree=5000, importance = TRUE, proximity = TRUE)
+print(model_acc)
+importance(model_acc)
+plot(model_acc)
+
+# Random forest leave one out approach
 ### Random Forest LOO
 train <- rf_input
 uniqueIDs <- rownames(train)          
@@ -1455,3 +1463,6 @@ find_indicators$min <- do.call(pmin, find_indicators)
 find_indicators_clean <- find_indicators %>% filter(min>0)
 dim(find_indicators_clean)
 write.csv(find_indicators_clean, "results/indicators_RF/MG_classification_SCO/varimp_mean_allmodels_MG_classification_SCO_MINIMUM.csv")
+
+
+
