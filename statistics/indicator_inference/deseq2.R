@@ -1,62 +1,77 @@
-# test 2 DESeq2 with squeezemeta count table
-# test differential gene expression -> "differential abundance" of some samples using DESeq2
+# indicators_deseq
+# Verena Rubel 
+# RPTU Kaiserslautern Landau
+# original 30.10.2023 
+# last revision 25.04.2024
+# DESeq2 with gene input count tables
+# test "differential gene expression" using DESeq2
 
 library(tibble)
 library(tidyr)
 library(ggplot2)
 library(dplyr)
 library(DESeq2)
+library(vegan)
+'%!in%' <- function(x,y)!('%in%'(x,y))
 
-# load metadata containing sample grouping
-env_eq <- read.csv("../rf_tests_sat4/metadata_batch123_dna.csv", sep=",") %>% select(-sample) %>% dplyr::rename(sample=origin) %>%
-  select(sample, Rf_3) %>% filter(Rf_3=="g" | Rf_3=="b") %>% droplevels()
+# load env with info containing grouping (good/bad)
+env <- read.csv2("analysis_cleaned/metadata_RNA_Table_Batch123_cleaned.csv")
 
-# load ASV table containing read counts
-dna_tab <- read.csv("../stats_sat4/DNA_salmon_rare90.csv") %>% column_to_rownames("X")
+# load ASV table -> here: gene table
+tab_MT <- read.csv2("analysis_cleaned/RNA_Table_Batch123_cleaned.csv")
 
-# keep only metadata of samples which are in the ASV table
-env_eq <- env_eq %>% filter(sample %in% rownames(dna_tab))
-
-# load taxonomic assignment to filter only for Bacterial reads
-taxo_key <- read.csv("../stats_sat4/taxo_key.csv") %>% select(-X) %>% filter(kingdom=="Bacteria")
-taxojoin_bac <- dna_tab[,which(colnames(dna_tab) %in% taxo_key$TAX)]
-
-# keep only ASVs which have at least 100 reads
-taxojoin_bac <- taxojoin_bac[,which(colSums(taxojoin_bac) >99)]
-taxojoin_bac <- taxojoin_bac[which(rownames(taxojoin_bac) %in% env_eq$sample),]
-ints <- taxojoin_bac %>% t() %>% as.data.frame()
-tab_in <- ints %>% rownames_to_column("TAX")
+# transform first column into kegg id only and remove gene description for anaysis
+tab_MT2 <- tab_MT %>% separate(X, into = c("KEGG_id", "KEGG_gene"), sep = "_", remove = TRUE)
+tab_in <- tab_MT2 %>% select(-KEGG_gene) %>% column_to_rownames("KEGG_id") %>% round(0) %>%
+  rownames_to_column("KEGG_id")
 
 #DESeq2
-dds <- DESeqDataSetFromMatrix(countData=tab_in, 
-                              colData=env_eq, 
-                              design=~Rf_3, tidy = TRUE)
 
-# if zeros: option=  "poscounts" (calculating a modified geometric mean by taking the n-th root of the product of the non-zero counts)
+dds <- DESeqDataSetFromMatrix(countData=tab_in, 
+                              colData=env, 
+                              design=~env_state, tidy = TRUE)
+# if zeros: option=  "poscounts" (calculating a modified geometric mean by taking the 
+# n-th root of the product of the non-zero counts)
+
 dds <- DESeq(dds, sfType = "poscounts")
 res <- results(dds)
-head(results(dds, tidy=TRUE))
-summary(res)
 res <- res[order(res$padj),]
-saveRDS(res, "DESeq2_results.rds")
+write.csv(res, "results/indicators_deseq/DESeq2_output.csv")
 
-# explore results
-
+png("results/indicators_deseq/DESeq2_results_plot.png")
 plotMA(res, ylim=c(-2,2))
-plotCounts(dds, gene="TAX_165", intgroup="Rf_3")
-head(res)
-head(res[6])
+dev.off()
 
-# make and filter result data frame
+# weil reihenfolge b - g : up/down regulated umgedreht
+# wir wollen wissen: transition 2 - 5 , g - b up or down?
+
 padj_df <- as.data.frame(res[6]) 
 log2fc_df <- as.data.frame(res[2])
 res_df <- cbind(padj_df, log2fc_df)
 sig_df <- res_df %>% filter(padj<0.05) %>% filter(log2FoldChange>0 | log2FoldChange<(-0))
 
-sig_ups <- res_df %>% filter(padj<0.05) %>% filter(log2FoldChange<0)
-write.csv(sig_ups, "DESeq2_upregulated_genes.csv")
+# for upregulation (which is "downregulation" and therefore negative, transfrom to positive values
+sig_ups <- res_df %>% filter(padj<0.05) %>% filter(log2FoldChange<0) %>% 
+  abs() %>% filter(log2FoldChange>=2)
+write.csv(sig_ups, "results/indicators_deseq/DESeq2_upregulated_genes.csv")
+#
+sig_downs <- res_df %>% filter(padj<0.05) %>% filter(log2FoldChange>0) %>% 
+  abs() %>% filter(log2FoldChange>=2)
+write.csv(sig_downs, "results/indicators_deseq/DESeq2_downregulated_genes.csv")
 
-sig_downs <- res_df %>% filter(padj<0.05) %>% filter(log2FoldChange>0)
-write.csv(sig_downs, "DESeq2_downregulated_genes.csv")
+# Plot the data
+p <- ggplot(sig_ups, aes(x = padj, y = log2FoldChange)) +
+  geom_point() +
+  labs(x = "adj. p-value", y = "Log Fold Change", title="698 significantly upregulated genes") +
+  theme_light()+
+  theme(panel.grid = element_blank())
+p
+ggsave("results/indicators_deseq/plot_upreg.pdf",p,height=4,width=5)
 
-saveRDS(dds, "dds.rds")
+p2 <- ggplot(sig_downs, aes(x = padj, y = log2FoldChange)) +
+  geom_point() +
+  labs(x = "adj. p-value", y = "Log Fold Change", title="2443 significantly downregulated genes") +
+  theme_light()+
+  theme(panel.grid = element_blank())
+p2
+ggsave("results/indicators_deseq/plot_downreg.pdf",p2,height=4,width=5)
