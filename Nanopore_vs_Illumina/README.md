@@ -1,6 +1,4 @@
-R_code_Nanopore_vs_Illumina.R
-
-The R code is seperated into 4 sections.
+The provided R code "R_code_Nanopore_vs_Illumina.R" is seperated into 4 sections.
 First section reveals how to calculate the Shannon diversity Index.
 The second section deals with the calculation of the Bray-Kurtis dissimilarities and the cluster analysis using hclust().
 Followed by a code to visualize the analysis in dendrograms.
