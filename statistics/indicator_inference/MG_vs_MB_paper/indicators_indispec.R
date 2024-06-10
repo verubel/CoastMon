@@ -31,7 +31,7 @@ env_class_NOR <- env %>% filter(Country=="NOR") %>%
 tab_MB_NOR <- tab_MB[,which(colnames(tab_MB) %in% env_class_NOR$Sample)]
 # load ASV table -> here: read count data per Family level
 groups <- env_class_NOR$EQ_class
-indval = indicspecies::multipatt(t(tab_MB_NOR), groups, control = how(nperm = 9999))
+indval = indicspecies::multipatt(t(tab_MB_NOR), groups, duleg=TRUE, control = how(nperm = 9999))
 summary(indval, indvalcomp=TRUE)
 #extract table of stats
 library(data.table)
