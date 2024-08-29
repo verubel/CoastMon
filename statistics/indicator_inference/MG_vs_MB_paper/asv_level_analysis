@@ -1,0 +1,322 @@
+# part 2 ASV level
+# Verena Rubel 09.07.2024
+library(tibble)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(vegan)
+library("VennDiagram", lib.loc = "/home/vdully/Libraries")
+library("gplots", lib.loc = "/home/vdully/Libraries")
+'%!in%' <- function(x,y)!('%in%'(x,y))
+#install.packages("gplots", lib = "/home/vdully/Libraries")
+
+# read table and order columns alphabetically!
+tab_MB <- read.csv("../data_created/ASV_Table_MB_10_targets_NONRARE.csv", row.names = 1)[1:65]
+tab_MB<- tab_MB %>% dplyr::select(order(colnames(tab_MB)))
+# read table and order columns alphabetically!
+tab_MG <- read.csv("../ASVs_TAXs/asv_mg_cleaned3.csv", row.names = 1)
+tab_MG <- tab_MG %>% dplyr::select(order(colnames(tab_MG)))
+
+# load env with info containing grouping (good/bad)
+out_sams <- read.csv("../samples_out_NMDS_MB_MG.csv")
+env0 <- read.csv("../data/metadata_MB_MG.csv")
+env0 <- env0[order(env0$Sample),]
+env <- env0[which(env0$Sample %!in% out_sams$S3), ]
+env_cty <- env %>% dplyr::select(Sample, Country)
+env_ambi <- env %>% dplyr::select(Sample, AMBI)
+env_eqform <- env %>% mutate(EQ_class = ifelse(EQ %in% c(1, 2), "good", "bad")) %>% dplyr::select(Sample, EQ_class)
+
+# 1. Shared ASVs
+# venn
+
+MB <- rownames(tab_MB)
+MG <- rownames(tab_MG)
+
+# Calculate intersections and unique elements
+intersection <- length(dplyr::intersect(MB, MG))
+only_MB <- length(setdiff(MB, MG))
+only_MG <- length(setdiff(MG, MB))
+#only_MB2 <- setdiff(MB, MG)
+#write.csv(only_MB2, "only_MB2.csv")
+#only_MG2 <- setdiff(MG, MB)
+#write.csv(only_MG2, "only_MG2.csv")
+total_MB <- length(MB)
+total_MG <- length(MG)
+
+# Calculate the total union
+total_union <- length(union(MB, MG))
+
+# Calculate percentages relative to the total union
+percentage_only_MB <- only_MB / total_union * 100
+percentage_only_MG <- only_MG / total_union * 100
+percentage_intersection <- intersection / total_union * 100
+
+# Plot the Venn diagram manually
+plot(0, 0, type = "n", xlim = c(-1, 3), ylim = c(-1, 3), xlab = "", ylab = "", xaxt = 'n', yaxt = 'n')
+
+# Draw circles
+symbols(0, 1, circles = 1, inches = FALSE, add = TRUE, bg = alpha("blue", 0.1), fg = NULL)
+symbols(1, 1, circles = 1, inches = FALSE, add = TRUE, bg = alpha("yellow", 0.1), fg = NULL)
+
+# Add text labels with correct percentages
+text(-0.5, 1, paste("MB", only_MB, "\n", round(percentage_only_MB, 2), "%"))
+text(1.5, 1, paste("MG", only_MG, "\n", round(percentage_only_MG, 2), "%"))
+text(0.5, 1, paste("", intersection, "\n", round(percentage_intersection, 2), "%"))
+
+
+# 2. indicator ASVs
+
+# indispec
+
+path_indispec <- "/work/TUK-CoastMon/MB_vs_MG/combined_final/results/ASV_indicators_indispec/"
+
+indicator_set_indispec_mb <- read.csv(paste0(path_indispec, "IndicSpec_adj_pval_MB.csv")) %>% filter(p.value.bh < 0.05) %>% select(rn) %>% rename(X=rn) %>% mutate(indic_MB=1)%>% rename(ASV=X)
+indicator_set_indispec_mg <- read.csv(paste0(path_indispec, "IndicSpec_adj_pval_MG.csv")) %>% filter(p.value.bh < 0.05) %>% select(rn) %>% rename(X=rn) %>% mutate(indic_MG=1)%>% rename(ASV=X)
+indicator_set_indispec_mb_sco <- read.csv(paste0(path_indispec, "IndicSpec_adj_pval_MB_SCO2.csv")) %>% filter(p.value.bh < 0.05) %>% select(rn) %>% rename(X=rn) %>% mutate(indic_MB_SCO=1)%>% rename(ASV=X)
+indicator_set_indispec_mb_nor <- read.csv(paste0(path_indispec, "IndicSpec_adj_pval_MB_NOR2.csv")) %>% filter(p.value.bh < 0.05) %>% select(rn) %>% rename(X=rn) %>% mutate(indic_MB_NOR=1)%>% rename(ASV=X)
+indicator_set_indispec_mg_sco <- read.csv(paste0(path_indispec, "IndicSpec_adj_pval_MG_SCO2.csv")) %>% filter(p.value.bh < 0.05) %>% select(rn) %>% rename(X=rn) %>% mutate(indic_MG_SCO=1)%>% rename(ASV=X)
+indicator_set_indispec_mg_nor <- read.csv(paste0(path_indispec, "IndicSpec_adj_pval_MG_NOR2.csv")) %>% filter(p.value.bh < 0.05) %>% select(rn) %>% rename(X=rn) %>% mutate(indic_MG_NOR=1)%>% rename(ASV=X)
+
+
+path_RF <- "/work/TUK-CoastMon/MB_vs_MG/combined_final/results/ASV_indicators_RF/"
+
+indicator_set_RF_mb <- read.csv(paste0(path_RF, "classification/varimp_mean_allmodels_MB_classification_MINIMUM.csv")) %>% filter(min > 0) %>% select(X) %>% mutate(rf_class_MB=1)%>% rename(ASV=X)
+indicator_set_RF_mg <- read.csv(paste0(path_RF, "classification/varimp_mean_allmodels_MG_classification_MINIMUM.csv")) %>% filter(min > 0) %>% select(X) %>% mutate(rf_class_MG=1)%>% rename(ASV=X)
+indicator_set_RF_mb_sco <- read.csv(paste0(path_RF, "classification/varimp_mean_allmodels_MB_classification_SCO_MINIMUM.csv")) %>% filter(min > 0) %>% select(X)%>% mutate(rf_class_MB_SCO=1)%>% rename(ASV=X)
+indicator_set_RF_mb_nor <- read.csv(paste0(path_RF, "classification/varimp_mean_allmodels_MB_classification_NOR_MINIMUM.csv")) %>% filter(min > 0) %>% select(X)%>% mutate(rf_class_MB_NOR=1)%>% rename(ASV=X)
+indicator_set_RF_mg_sco <- read.csv(paste0(path_RF, "classification/varimp_mean_allmodels_MG_classification_SCO_MINIMUM.csv")) %>% filter(min > 0) %>% select(X)%>% mutate(rf_class_MG_SCO=1)%>% rename(ASV=X)
+indicator_set_RF_mg_nor <- read.csv(paste0(path_RF, "classification/varimp_mean_allmodels_MG_classification_NOR_MINIMUM.csv")) %>% filter(min > 0) %>% select(X)%>% mutate(rf_class_MG_NOR=1)%>% rename(ASV=X)
+
+asvs <- rownames(tab_MB) %>% as.data.frame()
+colnames(asvs) <- "ASV"
+inidc_ind <- asvs %>% left_join(indicator_set_indispec_mb) %>% left_join(indicator_set_indispec_mg) %>% left_join(indicator_set_indispec_mb_sco) %>% left_join(indicator_set_indispec_mb_nor) %>% left_join(indicator_set_indispec_mg_sco) %>% left_join(indicator_set_indispec_mg_nor)
+rf_class_ind <- asvs %>% left_join(indicator_set_RF_mb) %>% left_join(indicator_set_RF_mg) %>% left_join(indicator_set_RF_mb_sco) %>% left_join(indicator_set_RF_mb_nor) %>% left_join(indicator_set_RF_mg_sco) %>% left_join(indicator_set_RF_mg_nor)
+rf_regr_ind <- asvs %>% left_join(indicator_set_RF_reg_mb) %>% left_join(indicator_set_RF_reg_mg) %>% left_join(indicator_set_RF_reg_mb_sco) %>% left_join(indicator_set_RF_reg_mb_nor) %>% left_join(indicator_set_RF_reg_mg_sco) %>% left_join(indicator_set_RF_reg_mg_nor)
+
+all_ind <- asvs %>% left_join(inidc_ind) %>%  left_join(rf_class_ind) %>% left_join(rf_regr_ind)
+all_ind[is.na(all_ind)] <- 0
+all_ind2 <- all_ind %>% column_to_rownames("ASV") %>%  mutate(total=rowSums(.)) %>% arrange(-total) %>% filter(total>0) %>% droplevels()
+write.csv(all_ind2, "all_indicators_binary_3algos_ASV.csv")
+
+# venn
+
+MB <- rownames(all_ind2 %>% select(contains("MB")) %>% mutate(total=rowSums(.)) %>% filter(total>0) %>% droplevels())
+MG <- rownames(all_ind2 %>% select(contains("MG")) %>% mutate(total=rowSums(.)) %>% filter(total>0) %>% droplevels())
+
+# Calculate intersections and unique elements
+intersection <- length(dplyr::intersect(MB, MG))
+only_MB <- length(setdiff(MB, MG))
+only_MG <- length(setdiff(MG, MB))
+#only_MB2 <- setdiff(MB, MG)
+#write.csv(only_MB2, "only_MB2.csv")
+#only_MG2 <- setdiff(MG, MB)
+#write.csv(only_MG2, "only_MG2.csv")
+total_MB <- length(MB)
+total_MG <- length(MG)
+
+# Calculate the total union
+total_union <- length(union(MB, MG))
+
+# Calculate percentages relative to the total union
+percentage_only_MB <- only_MB / total_union * 100
+percentage_only_MG <- only_MG / total_union * 100
+percentage_intersection <- intersection / total_union * 100
+
+# Plot the Venn diagram manually
+plot(0, 0, type = "n", xlim = c(-1, 3), ylim = c(-1, 3), xlab = "", ylab = "", xaxt = 'n', yaxt = 'n')
+
+# Draw circles
+symbols(0, 1, circles = 1, inches = FALSE, add = TRUE, bg = alpha("blue", 0.1), fg = NULL)
+symbols(1, 1, circles = 1, inches = FALSE, add = TRUE, bg = alpha("yellow", 0.1), fg = NULL)
+
+# Add text labels with correct percentages
+text(-0.5, 1, paste("MB", only_MB, "\n", round(percentage_only_MB, 2), "%"))
+text(1.5, 1, paste("MG", only_MG, "\n", round(percentage_only_MG, 2), "%"))
+text(0.5, 1, paste("", intersection, "\n", round(percentage_intersection, 2), "%"))
+
+
+
+# venn per algo
+
+MB <- rownames(all_ind2 %>% select(contains("class_MB")) %>% mutate(total=rowSums(.)) %>% filter(total>0) %>% droplevels())
+MG <- rownames(all_ind2 %>% select(contains("class_MG")) %>% mutate(total=rowSums(.)) %>% filter(total>0) %>% droplevels())
+
+# Calculate intersections and unique elements
+intersection <- length(dplyr::intersect(MB, MG))
+only_MB <- length(setdiff(MB, MG))
+only_MG <- length(setdiff(MG, MB))
+#only_MB2 <- setdiff(MB, MG)
+#write.csv(only_MB2, "only_MB2.csv")
+#only_MG2 <- setdiff(MG, MB)
+#write.csv(only_MG2, "only_MG2.csv")
+total_MB <- length(MB)
+total_MG <- length(MG)
+
+# Calculate the total union
+total_union <- length(union(MB, MG))
+
+# Calculate percentages relative to the total union
+percentage_only_MB <- only_MB / total_union * 100
+percentage_only_MG <- only_MG / total_union * 100
+percentage_intersection <- intersection / total_union * 100
+
+# Plot the Venn diagram manually
+plot(0, 0, type = "n", xlim = c(-1, 3), ylim = c(-1, 3), xlab = "", ylab = "", xaxt = 'n', yaxt = 'n')
+
+# Draw circles
+symbols(0, 1, circles = 1, inches = FALSE, add = TRUE, bg = alpha("blue", 0.1), fg = NULL)
+symbols(1, 1, circles = 1, inches = FALSE, add = TRUE, bg = alpha("yellow", 0.1), fg = NULL)
+
+# Add text labels with correct percentages
+text(-0.5, 1, paste("MB", only_MB, "\n", round(percentage_only_MB, 2), "%"))
+text(1.5, 1, paste("MG", only_MG, "\n", round(percentage_only_MG, 2), "%"))
+text(0.5, 1, paste("", intersection, "\n", round(percentage_intersection, 2), "%"))
+
+
+
+## boxplots number of indicators plus pred acc (like family)
+
+n_inds <- read.csv("results_asvs_typed.csv", sep=",") %>% select(-aldex, -deseq2)
+n_inds_long <- n_inds %>% gather("algo", "value", -type)
+
+n_inds_long_param <- n_inds_long  %>% mutate(MBMG = ifelse(grepl("MB", type), "MB", ifelse(grepl("MG", type), "MG", NA))) %>%
+  mutate(dataset = ifelse(grepl("SCO", type), "SCO", ifelse(grepl("NOR", type), "NOR", "both")))
+
+kruskal_test <- kruskal.test(value ~ MBMG, data = n_inds_long_param)
+print(kruskal_test)
+
+n_inds_long_param %>% select(value, MBMG) %>% filter(MBMG=="MB") %>% summary()
+n_inds_long_param %>% select(value, MBMG) %>% filter(MBMG=="MG") %>% summary()
+
+plot1<-ggplot(n_inds_long_param,aes(MBMG,value)) +
+  geom_boxplot() +
+  theme_light()+
+  theme(panel.grid = element_blank())+
+  labs(y="Impact prediction accuracy", x="Sequencing strategy")+
+  facet_grid(.~algo)+
+  theme(
+    strip.background = element_rect(fill = "white", color = "white"),
+    strip.text = element_text(color = "black"))
+plot1
+ggsave("paper_boxplot_asvs_predacc.pdf",plot1,height=3,width=5)
+
+plot1<-ggplot(n_inds_long_param,aes(MBMG,value)) +
+  geom_point() +
+  theme_light()+
+  theme(panel.grid = element_blank())+
+  labs(y="Impact prediction accuracy", x="Sequencing strategy")+
+  facet_grid(dataset~algo)+
+  theme(
+    strip.background = element_rect(fill = "white", color = "white"),
+    strip.text = element_text(color = "black"))
+plot1
+ggsave("paper_boxplot_asvs_predacc_grid.pdf",plot1,height=3,width=5)
+
+
+# n inds
+
+n_inds <- read.csv("inds_asvs_typed_raw.csv", sep=",") %>% select(-aldex, -deseq2)
+n_inds_long <- n_inds %>% gather("algo", "value", -type)
+
+n_inds_long_param <- n_inds_long  %>% mutate(MBMG = ifelse(grepl("MB", type), "MB", ifelse(grepl("MG", type), "MG", NA))) %>%
+  mutate(dataset = ifelse(grepl("SCO", type), "SCO", ifelse(grepl("NOR", type), "NOR", "both")))
+
+kruskal_test <- kruskal.test(value ~ MBMG, data = n_inds_long_param)
+print(kruskal_test)
+
+n_inds_long_param %>% select(value, MBMG) %>% filter(MBMG=="MB") %>% summary()
+n_inds_long_param %>% select(value, MBMG) %>% filter(MBMG=="MG") %>% summary()
+
+plot1<-ggplot(n_inds_long_param,aes(MBMG,value)) +
+  geom_boxplot() +
+  theme_light()+
+  theme(panel.grid = element_blank())+
+  labs(y="Number of indicator candidates", x="Sequencing strategy")+
+  facet_wrap(.~algo)+
+  #facet_wrap(.~algo, scales="free_y")+
+  theme(
+    strip.background = element_rect(fill = "white", color = "white"),
+    strip.text = element_text(color = "black"))
+plot1
+ggsave("boxplot_n_indiators_asvs.pdf",plot1,height=3,width=5)
+#ggsave("boxplot_n_indiators_asvs_scaled.pdf",plot1,height=3,width=5)
+
+
+plot1<-ggplot(n_inds_long_param,aes(MBMG,value)) +
+  geom_point() +
+  theme_light()+
+  theme(panel.grid = element_blank())+
+  labs(y="Number of indicator candidates", x="Sequencing strategy")+
+  #facet_grid(dataset~algo)+
+  facet_wrap(dataset~algo, scales="free_y")+
+  theme(
+    strip.background = element_rect(fill = "white", color = "white"),
+    strip.text = element_text(color = "black"))
+plot1
+#ggsave("boxplot_n_indiators_asvs_dataset.pdf",plot1,height=3,width=5)
+ggsave("boxplot_n_indiators_asvs_dataset_scaled.pdf",plot1,height=3.5,width=5)
+
+
+
+
+
+# abundance test 
+
+all_ind2 <- read.csv("all_indicators_binary_3algos_ASV.csv", row.names = 1) 
+MB <- rownames(all_ind2 %>% select(contains("MB_NOR")) %>% mutate(total=rowSums(.)) %>% filter(total>0) %>% droplevels())
+MG <- rownames(all_ind2 %>% select(contains("MG_NOR")) %>% mutate(total=rowSums(.)) %>% filter(total>0) %>% droplevels())
+# Calculate intersection
+only_MG <- setdiff(MG, MB)
+
+tab_MB_filt <- tab_MB[which(rownames(tab_MB) %in% only_MG),]
+tab_MG_filt <- tab_MG[which(rownames(tab_MG) %in% only_MG),]
+
+
+
+
+
+
+# shared ASV indicators 
+# venn per algo
+all_ind2 <- read.csv("all_indicators_binary_3algos_ASV.csv", row.names=1)
+all_ind2_renamed <- all_ind2 %>% 
+  rename(indic_MB_both = indic_MB) %>%
+  rename(indic_MG_both = indic_MG) %>%
+  rename(rf_class_MB_both = rf_class_MB) %>%
+  rename(rf_class_MG_both = rf_class_MG) %>%
+  rename(rf_regr_MB_both = rf_regr_MB) %>%
+  rename(rf_regr_MG_both = rf_regr_MG)
+colnames(all_ind2_renamed)
+
+MB <- rownames(all_ind2_renamed %>% select(contains("indic")) %>% select(contains("MB_NOR")) %>% 
+                 mutate(total=rowSums(.)) %>% filter(total>0) %>% droplevels())
+MG <- rownames(all_ind2_renamed %>% select(contains("indic")) %>% select(contains("MG_NOR")) %>% 
+                 mutate(total=rowSums(.)) %>% filter(total>0) %>% droplevels())
+
+# Calculate intersections and unique elements
+intersection <- length(dplyr::intersect(MB, MG))
+only_MB <- length(setdiff(MB, MG))
+only_MG <- length(setdiff(MG, MB))
+
+total_MB <- length(MB)
+total_MG <- length(MG)
+
+# Calculate the total union
+total_union <- length(union(MB, MG))
+
+# Calculate percentages relative to the total union
+percentage_only_MB <- only_MB / total_union * 100
+percentage_only_MG <- only_MG / total_union * 100
+percentage_intersection <- intersection / total_union * 100
+
+# Plot the Venn diagram manually
+plot(0, 0, type = "n", xlim = c(-1, 3), ylim = c(-1, 3), xlab = "", ylab = "", xaxt = 'n', yaxt = 'n')
+
+# Draw circles
+symbols(0, 1, circles = 1, inches = FALSE, add = TRUE, bg = alpha("blue", 0.1), fg = NULL)
+symbols(1, 1, circles = 1, inches = FALSE, add = TRUE, bg = alpha("yellow", 0.1), fg = NULL)
+
+# Add text labels with correct percentages
+text(-0.5, 1, paste("MB", only_MB, "\n", round(percentage_only_MB, 2), "%"))
+text(1.5, 1, paste("MG", only_MG, "\n", round(percentage_only_MG, 2), "%"))
+text(0.5, 1, paste("", intersection, "\n", round(percentage_intersection, 2), "%"))
